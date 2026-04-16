@@ -1,2 +1,19 @@
 fms_env/
 pyvenv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Brian2 compiled objects
+brian_objects/
+
+# Trained model files (large binaries)
+*.joblib
+
+# Data files (generated, not source)
+data/
+
+# IDE
+.vscode/

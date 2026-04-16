@@ -75,7 +75,7 @@ for module, purpose in dependencies.items():
     except ImportError:
         print(f"✗ {module:15s} - NOT INSTALLED (optional)")
 
-print("\n" + "="*60)
+
 print("INSTALLATION TEST COMPLETE")
-print("="*60)
-print("\nYour environment is ready for the FMS neural model project!")
+
+print("\nYour environment is ready for the FMS neural model project")

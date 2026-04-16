@@ -7,9 +7,7 @@ from sklearn.svm import SVC
 import sklearn
 import pandas as pd
 
-print("="*60)
 print("FMS NEURAL MODEL - ENVIRONMENT VERIFICATION")
-print("="*60)
 
 print("\n✓ Core dependencies installed:")
 print(f"  Brian2:        {brian2.__version__}")
@@ -25,6 +23,4 @@ print(f"  SVM:           {SVC.__name__}")
 print("\n✓ Brian2 code generation target:")
 print(f"  {prefs.codegen.target}")
 
-print("\n" + "="*60)
-print("READY TO BUILD FMS MODEL!")
-print("="*60)
+print("READY TO BUILD FMS MODEL")
