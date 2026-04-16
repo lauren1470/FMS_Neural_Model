@@ -1,51 +1,52 @@
 {
   "random_forest": {
     "test_set": {
-      "accuracy": 0.9666666666666667,
-      "precision": 0.9545454545454546,
-      "recall": 0.98,
-      "f1": 0.9671052631578947
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
     },
     "cross_validation": {
-      "accuracy": 0.9571428571428571,
-      "precision_macro": 0.9580320580320582,
-      "recall_macro": 0.9571428571428571,
-      "f1_macro": 0.9571195144724557
+      "accuracy": 1.0,
+      "precision_macro": 1.0,
+      "recall_macro": 1.0,
+      "f1_macro": 1.0
     },
     "feature_importance": {
-      "wdr_mean_rate": 0.10178801904485009,
-      "gaba_mean_rate": 0.01862902659139736,
-      "wdr_peak_rate": 0.07541104595034691,
-      "wdr_isi_mean": 0.03793715973729805,
-      "wdr_isi_std": 0.05246226541808237,
-      "wdr_isi_cv": 0.05950829873488971,
-      "gaba_isi_mean": 0.01607353919947624,
-      "gaba_isi_std": 0.01698340819803421,
-      "gaba_isi_cv": 0.017683722904726102,
-      "wdr_windup_ratio": 0.032233248029924236,
-      "wdr_early_rate": 0.05620183583626993,
-      "wdr_late_rate": 0.025881210811712026,
-      "wdr_burst_count": 0.1319950166209583,
-      "wdr_burst_fraction": 0.15558678159528416,
-      "ei_ratio": 0.02393143205941274,
-      "wdr_active_fraction": 0.07152727670914727,
-      "wdr_total_spikes": 0.08685963576239272,
-      "gaba_total_spikes": 0.0193070767957974
+      "wdr_mean_rate": 0.09138297446731145,
+      "gaba_mean_rate": 0.003988735237234878,
+      "wdr_peak_rate": 0.05270988240428522,
+      "wdr_isi_mean": 0.011564782363493658,
+      "wdr_isi_std": 0.015171936552747449,
+      "wdr_isi_cv": 0.020681885282853942,
+      "gaba_isi_mean": 0.0027040375751835027,
+      "gaba_isi_std": 0.001996126435129643,
+      "gaba_isi_cv": 0.00216261670697149,
+      "wdr_windup_ratio": 0.28639907637788714,
+      "wdr_evoked_response": 0.2294504119174816,
+      "wdr_early_rate": 0.026711675238178512,
+      "wdr_late_rate": 0.008094109330498535,
+      "wdr_burst_count": 0.08777051320213353,
+      "wdr_burst_fraction": 0.058248079181752094,
+      "ei_ratio": 0.012864130487113252,
+      "wdr_active_fraction": 0.02515125161938384,
+      "wdr_total_spikes": 0.06000913608684504,
+      "gaba_total_spikes": 0.0029386395335153554
     },
     "best_params": null
   },
   "svm_rbf": {
     "test_set": {
-      "accuracy": 0.95,
-      "precision": 0.9530201342281879,
-      "recall": 0.9466666666666667,
-      "f1": 0.9498327759197325
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
     },
     "cross_validation": {
-      "accuracy": 0.9557142857142857,
-      "precision_macro": 0.9561371733145985,
-      "recall_macro": 0.9557142857142858,
-      "f1_macro": 0.9557023973170136
+      "accuracy": 0.9971428571428571,
+      "precision_macro": 0.9972222222222221,
+      "recall_macro": 0.9971428571428571,
+      "f1_macro": 0.9971422739334559
     },
     "best_params": null
   }

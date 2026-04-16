@@ -493,7 +493,7 @@ def plot_results(results: dict, save: bool = True) -> None:
         os.makedirs(FIGURES_DIR, exist_ok=True)
         fname = os.path.join(FIGURES_DIR, f"sim_{state_name.lower()}.png")
         fig.savefig(fname, dpi=150, bbox_inches='tight')
-        print(f"\n  Figure saved → {fname}")
+        print(f"\n  Figure saved: {fname}")
 
     plt.show()
 
@@ -538,7 +538,7 @@ def compare_states(duration_ms: float = DEFAULT_DURATION_MS, seed: int = 42) -> 
     os.makedirs(FIGURES_DIR, exist_ok=True)
     fname = os.path.join(FIGURES_DIR, "comparison_all_states.png")
     fig.savefig(fname, dpi=150, bbox_inches='tight')
-    print(f"\n  Comparison figure saved → {fname}")
+    print(f"\n  Comparison figure saved: {fname}")
     plt.show()
 
 
