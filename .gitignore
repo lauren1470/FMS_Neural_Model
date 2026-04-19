@@ -12,8 +12,5 @@ brian_objects/
 # Trained model files (large binaries)
 *.joblib
 
-# Data files (generated, not source)
-data/
-
 # IDE
 .vscode/

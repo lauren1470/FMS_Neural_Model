@@ -247,3 +247,25 @@ class PathologyStates:
             'w_nmda_c_to_wdr': new_nmda,
             'w_gaba_to_wdr': new_gaba,
         }
+
+    @staticmethod
+    def custom(nmda_multiplier: float, gaba_factor: float):
+        """
+        Define an arbitrary pathology state with explicit NMDA and GABA multipliers
+        relative to the healthy baseline. Used for sensitivity analysis.
+
+        Parameters
+        ----------
+        nmda_multiplier : float
+            Multiplier applied to healthy NMDA weight (1.0 = healthy, 3.0 = FMS).
+        gaba_factor : float
+            Multiplier applied to healthy GABA weight (1.0 = healthy, 0.4 = FMS).
+        """
+        healthy_nmda = SynapticParameters.NMDA_weights_healthy['c_to_wdr']
+        healthy_gaba = SynapticParameters.GABA_weights_healthy['gaba_to_wdr']
+        return {
+            'name': 'Custom',
+            'description': f'NMDA {nmda_multiplier:.2f}x healthy, GABA {gaba_factor:.2f}x healthy',
+            'w_nmda_c_to_wdr': healthy_nmda * nmda_multiplier,
+            'w_gaba_to_wdr':   healthy_gaba * gaba_factor,
+        }

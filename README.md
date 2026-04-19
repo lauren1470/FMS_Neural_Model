@@ -20,13 +20,14 @@ This project models that circuit computationally, generates a labelled dataset o
 FMS_Neural_Model/
 |
 |-- src/
-|   |-- neurons.py          # LIF neuron parameters (WDR, GABA, C-fibre, Ab-fibre)
-|   |-- synapses.py         # Synapse equations and pathology weight configurations
-|   |-- stimulation.py      # Stimulation protocols (constant, ramp, burst, mixed)
-|   |-- simulations.py      # Brian2 simulation runner and figure generation
-|   |-- features.py         # Spike-train feature extraction (19 features)
-|   |-- generate_dataset.py # Automated dataset generation across N trials
-|   |-- classifier.py       # ML training pipeline (Random Forest + SVM)
+|   |-- neurons.py                       # LIF neuron parameters (WDR, GABA, C-fibre, Ab-fibre)
+|   |-- synapses.py                      # Synapse equations and pathology weight configurations
+|   |-- stimulation.py                   # Stimulation protocols (constant, ramp, burst, mixed)
+|   |-- simulations.py                   # Brian2 simulation runner and figure generation
+|   |-- features.py                      # Spike-train feature extraction (19 features)
+|   |-- generate_dataset.py              # Automated dataset generation across N trials
+|   |-- generate_sensitivity_analysis.py # NMDA × GABA parameter sensitivity sweep
+|   |-- classifier.py                    # ML training pipeline (Random Forest + SVM)
 |
 |-- data/
 |   |-- dataset.csv         # 1000-trial labelled dataset (500 healthy / 500 FMS)
@@ -34,16 +35,21 @@ FMS_Neural_Model/
 |-- results/
 |   |-- initial/            # Classifier results (default hyperparameters)
 |   |-- tuned/              # Classifier results (grid-search tuned hyperparameters)
+|   |-- sensitivity/        # Sensitivity analysis results (CSV + JSON)
 |
 |-- models/
 |   |-- initial/            # Saved model files (initial run)
 |   |-- tuned/              # Saved model files (tuned run)
 |
 |-- figures/
+|   |-- diagrams/           # Circuit diagram
 |   |-- simulations/        # Raster plots and voltage traces per state
+|   |-- tables/             # Report tables (feature summary, classifier performance, feature importance)
+|   |-- sensitivity/        # Sensitivity analysis heatmap
 |   |-- initial/            # Confusion matrices and feature importance (initial)
 |   |-- tuned/              # Confusion matrices and feature importance (tuned)
 |
+|-- make_tables.py          # Report table figure generation
 |-- requirements.txt
 |-- README.md
 ```
@@ -51,6 +57,8 @@ FMS_Neural_Model/
 ---
 
 ## Circuit Model
+
+![Circuit Diagram](figures/diagrams/circuit_diagram.png)
 
 The model implements a gate control circuit with four neuron populations:
 
@@ -146,6 +154,22 @@ With grid-search hyperparameter tuning:
 python src/classifier.py --data data/dataset.csv --tune
 ```
 
+### 4. Run sensitivity analysis
+
+Sweeps NMDA (1.0×–4.0×) and GABA (0.2×–1.0×) across a 7 × 5 grid, running 5 replicates per combination (175 simulations total). Saves results to `results/sensitivity/` and a heatmap to `figures/sensitivity/`.
+
+```
+python src/generate_sensitivity_analysis.py
+```
+
+### 5. Generate report tables
+
+Produces styled PNG tables for the written report using data from `data/dataset.csv` and `results/tuned/classification_results.json`. Steps 2 and 3 must be completed first.
+
+```
+python make_tables.py
+```
+
 ---
 
 ## Features
@@ -189,6 +213,16 @@ All results are from the full 1000-trial dataset (500 healthy / 500 FMS, 70/30 s
 | WDR mean rate | 1.67 Hz | 48.37 Hz |
 | Wind-up ratio | 0.008 | 5.03 |
 | WDR neurons active | ~41% | ~100% |
+
+### Sensitivity analysis
+
+| Anchor point | NMDA | GABA | WDR mean rate |
+|---|---|---|---|
+| Healthy | 1.0× | 1.0× | 7.1 Hz |
+| Intervention | 2.0× | 0.76× | ~53 Hz |
+| FMS | 3.0× | 0.4× | 92.8 Hz |
+
+NMDA amplification is the dominant driver: increasing NMDA from 1.0× to 4.0× at full GABA raises WDR rate from 7.1 to 111.5 Hz (+104 Hz). Reducing GABA alone from 1.0× to 0.2× at healthy NMDA raises it from 7.1 to 35.6 Hz (+28 Hz). At NMDA ≥ 3.5×, further GABA reduction produces negligible additional increase, suggesting network saturation. The intervention state sits at approximately 53 Hz — reduced from FMS but not restored to healthy levels, consistent with partial treatment efficacy.
 
 ---
 

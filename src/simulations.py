@@ -78,15 +78,17 @@ def run_simulation(state: str = 'healthy',
     duration = duration_ms * ms
 
     # Resolve pathology state
-    state_map = {
-        'healthy':       PathologyStates.healthy,
-        'fibromyalgia':  PathologyStates.fibromyalgia,
-        'intervention':  PathologyStates.intervention,
-    }
-    if state not in state_map:
-        raise ValueError(f"Unknown state '{state}'. Choose from: {list(state_map)}")
-
-    pathology = state_map[state]()
+    if isinstance(state, dict):
+        pathology = state
+    else:
+        state_map = {
+            'healthy':       PathologyStates.healthy,
+            'fibromyalgia':  PathologyStates.fibromyalgia,
+            'intervention':  PathologyStates.intervention,
+        }
+        if state not in state_map:
+            raise ValueError(f"Unknown state '{state}'. Choose from: {list(state_map)}")
+        pathology = state_map[state]()
 
     if verbose:
         print(f"\n{'='*60}")
@@ -107,7 +109,7 @@ def run_simulation(state: str = 'healthy',
     GAIN    = SynapticParameters.GAIN
 
     # Select AMPA weight set based on state
-    if state == 'healthy':
+    if isinstance(state, str) and state == 'healthy':
         ampa_w = SynapticParameters.AMPA_weights_healthy
     else:
         ampa_w = SynapticParameters.AMPA_weights_sensitised
@@ -336,7 +338,7 @@ def run_simulation(state: str = 'healthy',
 
 # --- Wind-up measurement ---
 
-def run_windup_simulation(state: str = 'healthy', seed: int = None,
+def run_windup_simulation(state = 'healthy', seed: int = None,
                           n_stimuli: int = 10,
                           response_window_ms: float = 200.0) -> dict:
     """
