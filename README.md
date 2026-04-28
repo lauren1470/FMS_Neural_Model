@@ -278,3 +278,9 @@ Four protocols are used during dataset generation, each with randomised paramete
 | scipy | 1.11.4 |
 | joblib | 1.5.3 |
 | Cython | 3.2.4 |
+
+---
+
+## AI Assistance Disclosure
+
+Portions of this codebase were developed with the assistance of an AI language model (Claude, Anthropic), used for code generation and debugging. All code has been reviewed, tested, and validated by the author. The model design, parameter choices, and scientific decisions are the author's own.
