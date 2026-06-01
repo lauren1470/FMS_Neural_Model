@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pain Signal Simulator – FMS Neural Model</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; overflow: hidden; }   /* no scroll — everything fits on screen */
+
+  body {
+    background: #FFF0F4;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #2d2d3d;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #8B1A4A 0%, #C0406A 100%);
+    color: #fff;
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 1.1rem; font-weight: 700; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 10px; font-size: 0.75rem;
+    font-weight: 700; color: #fff; background: #999; transition: background 0.3s;
+    white-space: nowrap;
+  }
+  .status-badge.connected    { background: #27ae60; }
+  .status-badge.disconnected { background: #c0392b; }
+  #status-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.85); flex-shrink:0; }
+
+  .btn-mode {
+    padding: 4px 12px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.15); color: #fff; font-size: 0.78rem;
+    font-weight: 700; cursor: pointer; white-space: nowrap; transition: background 0.2s;
+  }
+  .btn-mode:hover { background: rgba(255,255,255,0.3); }
+
+  /* ── Manual controls ── */
+  .controls {
+    background: #FFE0EA; padding: 8px 16px; display: flex;
+    gap: 8px; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid #F0B0C0;
+  }
+  .controls label { font-weight: 600; font-size: 0.85rem; color: #8B1A4A; }
+  .btn-stim {
+    padding: 6px 14px; border: 2px solid #C06080; border-radius: 16px;
+    background: #FFF0F4; color: #8B1A4A; font-size: 0.82rem;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-stim:hover  { background: #FFD0E0; }
+  .btn-stim.active { background: #C0406A; color:#fff; border-color:#8B1A4A; }
+
+  /* ── Main showcase grid — Option C 5-column layout ── */
+  #showcase-grid {
+    display: grid;
+    grid-template-areas:
+      "head larm body rarm torso"
+      ".    lleg body rleg .";
+    grid-template-columns: auto 1fr 130px 1fr auto;
+    grid-template-rows: auto auto;   /* size rows to content, not equal fractions */
+    gap: 12px 5px;                   /* row gap gives breathing room between arm and leg rows */
+    padding: 5px 12px;
+    align-content: center;           /* vertically centre the two rows in available space */
+    align-items: start;
+    justify-items: center;
+    flex: 1;                         /* take remaining height after header/legend/explanation */
+    width: 100%;
+    max-width: 1500px;               /* prevent sprawling too wide on large monitors */
+    margin: 0 auto;                  /* horizontally centre the grid */
+    box-sizing: border-box;
+  }
+
+  /* Per-sensor grid areas */
+  #sb-0 { grid-area: head;  }
+  #sb-1 { grid-area: torso; }
+  #sb-2 { grid-area: rarm;  }
+  #sb-3 { grid-area: larm;  }
+  #sb-4 { grid-area: rleg;  }
+  #sb-5 { grid-area: lleg;  }
+  #body-centre { grid-area: body; grid-row: 1 / 3; display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: center; align-self: stretch; }
+
+  /* ── Sensor block ── */
+  .sensor-block {
+    background: #FFE8F0; border: 1.5px solid #E0A0B8;
+    border-radius: 8px; padding: 3px 6px 1px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .sensor-block[data-area="head"]  { grid-area: head; }
+  .sensor-block[data-area="torso"] { grid-area: torso; }
+
+  .sb-label {
+    font-size: 0.66rem; font-weight: 800; letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .sb-sublabel {
+    font-size: 0.58rem; font-weight: 600; color: #9B5070;
+    text-align: center; margin-top: -1px;
+  }
+
+  .canvas-pair {
+    display: flex; gap: 4px; align-items: flex-start;
+  }
+
+  .mini-col {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+
+  .state-tag {
+    font-size: 0.58rem; font-weight: 700; padding: 1px 5px;
+    border-radius: 5px; letter-spacing: 0.03em;
+  }
+  .healthy-tag { background: #D8E8FF; color: #2255A0; }
+  .fms-tag     { background: #FFD8E8; color: #A0004A; }
+
+  canvas.mini-canvas {
+    display: block; border-radius: 4px;
+    border: 1px solid #D090A8; background: #FFF5F8;
+  }
+
+  /* Panels are dimmed until a sensor is pressed */
+  .sensor-block {
+    opacity: 0.28;
+    transition: opacity 0.5s, border-color 0.4s;
+  }
+  .sensor-block.active-panel {
+    opacity: 1;
+    border-color: #C0406A;
+    box-shadow: 0 0 8px rgba(192,64,106,0.35);
+  }
+
+  .mini-meter-row {
+    display: flex; align-items: center; gap: 3px; width: 100%; margin-bottom: 0;
+  }
+  .mini-track {
+    flex: 1; height: 6px; background: #FFD0E0;
+    border-radius: 3px; overflow: hidden; border: 1px solid #E0A0B8;
+    min-width: 40px;
+  }
+  .mini-fill {
+    height: 100%; width: 0%; border-radius: 3px;
+    transition: width 0.12s, background-color 0.12s;
+    background: #4472C4;
+  }
+  .mini-hz {
+    font-size: 0.58rem; font-weight: 700; font-family: monospace;
+    color: #8B1A4A; min-width: 34px; text-align: right; white-space: nowrap;
+  }
+
+  /* ── Body centre ── */
+  .panel-hint {
+    font-size: 0.72rem; font-weight: 700; color: #8B1A4A; text-align: center;
+  }
+
+  .sensor-dot { fill: #D8B0BE; stroke: #555; stroke-width: 2; opacity: 0.6; transition: opacity 0.2s, stroke-width 0.2s; }
+  .sensor-dot.active { opacity: 1; stroke: #fff; stroke-width: 3; }
+  #sdot-0 { fill: #4472C4; } /* Head      — blue   */
+  #sdot-1 { fill: #27ae60; } /* Torso     — green  */
+  #sdot-2 { fill: #FFD700; } /* Right arm — yellow */
+  #sdot-3 { fill: #909090; } /* Left arm  — grey   */
+  #sdot-4 { fill: #FFFFFF; } /* Right leg — white  */
+  #sdot-5 { fill: #FF8C00; } /* Left leg  — orange */
+  .sensor-label { font-size: 8px; fill: #8B1A4A; font-weight: 600; font-family: 'Segoe UI', Arial, sans-serif; }
+
+  @keyframes sensorPulse {
+    0%   { transform: scale(1);   opacity: 0.65; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+  .sensor-pulse-ring { fill: none; stroke-width: 1.5; transform-box: fill-box; transform-origin: center; pointer-events: none; opacity: 0; }
+  .sensor-pulse-ring.pulsing { opacity: 0.65; animation: sensorPulse 0.9s ease-out infinite; }
+
+  /* Pressure bar */
+  .pressure-bar-panel { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .pressure-bar-label { font-size: 0.72rem; font-weight: 700; color: #8B1A4A; }
+  .meter-track { height: 14px; background: #FFD0E0; border-radius: 7px; overflow: hidden; border: 1px solid #E0A0B8; }
+  .meter-fill  { height: 100%; width: 0%; border-radius: 7px; transition: width 0.15s, background 0.15s; background: #4472C4; }
+  .pressure-intensity-tag {
+    font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 7px;
+    background: #F0D0DA; color: #8B1A4A; min-width: 60px;
+    text-align: center; transition: background 0.2s, color 0.2s;
+  }
+
+  /* ── Explanation ── */
+  .explanation {
+    margin: 3px 12px 3px; background: #fff; flex-shrink: 0;
+    border: 1.5px solid #E0A0B8; border-radius: 8px; padding: 4px 12px;
+  }
+  .explanation h4 { font-size: 0.8rem; color: #8B1A4A; margin-bottom: 2px; }
+  .explanation p  { font-size: 0.74rem; line-height: 1.4; color: #333; }
+  .explanation .gate-ok   { color: #27ae60; font-weight: 600; }
+  .explanation .gate-fail { color: #E91E63; font-weight: 600; }
+  .explanation .nmda      { color: #9B59B6; font-weight: 600; }
+
+  /* ── Legend ── */
+  .legend-row {
+    display: flex; justify-content: center; gap: 10px;
+    padding: 2px 16px 3px; flex-wrap: wrap; flex-shrink: 0;
+  }
+  .legend-item { display: flex; align-items: center; gap: 3px; font-size: 0.62rem; color: #555; }
+  .legend-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#128200; Pain Signal Simulator &mdash; Fibromyalgia Neural Model</h1>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:0.82rem;opacity:0.85;">University of East London &nbsp;|&nbsp; Capstone 2026</span>
+    <button id="mode-toggle" class="btn-mode" onclick="toggleMode()">&#128100; Manual mode</button>
+    <div id="status-badge" class="status-badge disconnected">
+      <div id="status-dot"></div>
+      <span id="status-text">Arduino offline</span>
+    </div>
+  </div>
+</header>
+
+<!-- Manual controls (hidden by default in live mode) -->
+<div id="manual-controls" class="controls" style="display:none;">
+  <label>Choose a stimulus:</label>
+  <button class="btn-stim" data-id="light_touch"   onclick="manualSet('light_touch')">&#128396; Light Touch</button>
+  <button class="btn-stim" data-id="moderate_pain"  onclick="manualSet('moderate_pain')">&#128293; Moderate Pain</button>
+  <button class="btn-stim" data-id="repeated"       onclick="manualSet('repeated')">&#128257; Repeated Stim.</button>
+  <button class="btn-stim" data-id="noxious"        onclick="manualSet('noxious')">&#9889; Noxious</button>
+  <button class="btn-stim" data-id="arm_light"      onclick="manualSet('arm_light')">Arm Light</button>
+  <button class="btn-stim" data-id="arm_medium"     onclick="manualSet('arm_medium')">Arm Medium</button>
+  <button class="btn-stim" data-id="arm_hard"       onclick="manualSet('arm_hard')">Arm Hard</button>
+  <button class="btn-stim" data-id="leg_light"      onclick="manualSet('leg_light')">Leg Light</button>
+  <button class="btn-stim" data-id="torso_light"    onclick="manualSet('torso_light')">Torso Light</button>
+  <button class="btn-stim" data-id="head_light"     onclick="manualSet('head_light')">Head Light</button>
+</div>
+
+<!-- Main grid -->
+<div id="showcase-grid">
+
+  <!-- HEAD (top centre) -->
+  <div class="sensor-block" id="sb-0" data-area="head">
+    <div class="sb-label" style="color:#4472C4">&#9679; Head / Neck</div>
+    <div class="sb-sublabel">Wind-up (burst stimulation)</div>
+    <div class="canvas-pair">
+      <div class="mini-col">
+        <div class="state-tag healthy-tag">Healthy</div>
+        <canvas id="mh-0" class="mini-canvas" width="115" height="120"></canvas>
+        <div class="mini-meter-row">
+          <div class="mini-track"><div class="mini-fill" id="mfh-0"></div></div>
+          <span class="mini-hz" id="mhz-h0">0 Hz</span>
+        </div>
+      </div>
+      <div class="mini-col">
+        <div class="state-tag fms-tag">FMS</div>
+        <canvas id="mf-0" class="mini-canvas" width="115" height="120"></canvas>
+        <div class="mini-meter-row">
+          <div class="mini-track"><div class="mini-fill" id="mff-0"></div></div>
+          <span class="mini-hz" id="mhz-f0">0 Hz</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Left Arm (sensor 3) -->
+  <div class="sensor-block" id="sb-3">
+      <div class="sb-label" style="color:#666">&#9679; Left Arm</div>
+      <div class="sb-sublabel">Allodynia (mixed stimulation)</div>
+      <div class="canvas-pair">
+        <div class="mini-col">
+          <div class="state-tag healthy-tag">Healthy</div>
+          <canvas id="mh-3" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mfh-3"></div></div>
+            <span class="mini-hz" id="mhz-h3">0 Hz</span>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="state-tag fms-tag">FMS</div>
+          <canvas id="mf-3" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mff-3"></div></div>
+            <span class="mini-hz" id="mhz-f3">0 Hz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sensor-block" id="sb-5">
+      <div class="sb-label" style="color:#FF8C00">&#9679; Left Leg</div>
+      <div class="sb-sublabel">Sustained pain (constant input)</div>
+      <div class="canvas-pair">
+        <div class="mini-col">
+          <div class="state-tag healthy-tag">Healthy</div>
+          <canvas id="mh-5" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mfh-5"></div></div>
+            <span class="mini-hz" id="mhz-h5">0 Hz</span>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="state-tag fms-tag">FMS</div>
+          <canvas id="mf-5" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mff-5"></div></div>
+            <span class="mini-hz" id="mhz-f5">0 Hz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Left Leg (sensor 5) -->
+  <div id="body-centre">
+    <div class="panel-hint">Press a sensor</div>
+    <svg id="body-svg" viewBox="0 0 120 210" width="130" height="228" style="display:block;margin:0 auto;">
+      <ellipse cx="60" cy="18" rx="14" ry="15" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <rect x="54" y="32" width="12" height="8" fill="#FFD5E0" stroke="none"/>
+      <rect x="34" y="38" width="52" height="52" rx="6" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <rect x="14" y="41" width="20" height="40" rx="7" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <rect x="86" y="41" width="20" height="40" rx="7" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <rect x="34" y="89" width="20" height="65" rx="7" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <rect x="66" y="89" width="20" height="65" rx="7" fill="#FFD5E0" stroke="#C07090" stroke-width="1.5"/>
+      <!-- Pulse rings -->
+      <circle id="spulse-0" class="sensor-pulse-ring" cx="60" cy="18"  r="8" stroke="#4472C4"/>
+      <circle id="spulse-1" class="sensor-pulse-ring" cx="60" cy="63"  r="8" stroke="#27ae60"/>
+      <circle id="spulse-2" class="sensor-pulse-ring" cx="96" cy="61"  r="8" stroke="#FFD700"/>
+      <circle id="spulse-3" class="sensor-pulse-ring" cx="24" cy="61"  r="8" stroke="#909090"/>
+      <circle id="spulse-4" class="sensor-pulse-ring" cx="76" cy="130" r="8" stroke="#CCCCCC"/>
+      <circle id="spulse-5" class="sensor-pulse-ring" cx="44" cy="130" r="8" stroke="#FF8C00"/>
+      <!-- Sensor dots -->
+      <circle id="sdot-0" class="sensor-dot" cx="60" cy="18"  r="7"/>
+      <circle id="sdot-1" class="sensor-dot" cx="60" cy="63"  r="7"/>
+      <circle id="sdot-2" class="sensor-dot" cx="96" cy="61"  r="7"/>
+      <circle id="sdot-3" class="sensor-dot" cx="24" cy="61"  r="7"/>
+      <circle id="sdot-4" class="sensor-dot" cx="76" cy="130" r="7"/>
+      <circle id="sdot-5" class="sensor-dot" cx="44" cy="130" r="7"/>
+      <!-- Labels -->
+      <text class="sensor-label" x="60"  y="6"   text-anchor="middle">Head</text>
+      <text class="sensor-label" x="69"  y="63"  dominant-baseline="middle">Torso</text>
+      <text class="sensor-label" x="104" y="55"  dominant-baseline="middle">R.Arm</text>
+      <text class="sensor-label" x="2"   y="55"  dominant-baseline="middle">L.Arm</text>
+      <text class="sensor-label" x="84"  y="124" dominant-baseline="middle">R.Leg</text>
+      <text class="sensor-label" x="2"   y="124" dominant-baseline="middle">L.Leg</text>
+    </svg>
+    <div class="pressure-bar-panel">
+      <div class="pressure-bar-label">Pressure</div>
+      <div class="meter-track" style="width:130px;">
+        <div class="meter-fill" id="pressure-fill"></div>
+      </div>
+      <div id="pressure-tag" class="pressure-intensity-tag">&mdash;</div>
+    </div>
+  </div>
+
+  <!-- Right Arm (sensor 2) -->
+  <div class="sensor-block" id="sb-2">
+      <div class="sb-label" style="color:#CC9900">&#9679; Right Arm</div>
+      <div class="sb-sublabel">Allodynia (mixed stimulation)</div>
+      <div class="canvas-pair">
+        <div class="mini-col">
+          <div class="state-tag healthy-tag">Healthy</div>
+          <canvas id="mh-2" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mfh-2"></div></div>
+            <span class="mini-hz" id="mhz-h2">0 Hz</span>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="state-tag fms-tag">FMS</div>
+          <canvas id="mf-2" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mff-2"></div></div>
+            <span class="mini-hz" id="mhz-f2">0 Hz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sensor-block" id="sb-4">
+      <div class="sb-label" style="color:#888">&#9679; Right Leg</div>
+      <div class="sb-sublabel">Sustained pain (constant input)</div>
+      <div class="canvas-pair">
+        <div class="mini-col">
+          <div class="state-tag healthy-tag">Healthy</div>
+          <canvas id="mh-4" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mfh-4"></div></div>
+            <span class="mini-hz" id="mhz-h4">0 Hz</span>
+          </div>
+        </div>
+        <div class="mini-col">
+          <div class="state-tag fms-tag">FMS</div>
+          <canvas id="mf-4" class="mini-canvas" width="115" height="120"></canvas>
+          <div class="mini-meter-row">
+            <div class="mini-track"><div class="mini-fill" id="mff-4"></div></div>
+            <span class="mini-hz" id="mhz-f4">0 Hz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Torso (sensor 1) -->
+  <div class="sensor-block" id="sb-1">
+    <div class="sb-label" style="color:#27ae60">&#9679; Torso</div>
+    <div class="sb-sublabel">Hyperalgesia (escalating input)</div>
+    <div class="canvas-pair">
+      <div class="mini-col">
+        <div class="state-tag healthy-tag">Healthy</div>
+        <canvas id="mh-1" class="mini-canvas" width="115" height="120"></canvas>
+        <div class="mini-meter-row">
+          <div class="mini-track"><div class="mini-fill" id="mfh-1"></div></div>
+          <span class="mini-hz" id="mhz-h1">0 Hz</span>
+        </div>
+      </div>
+      <div class="mini-col">
+        <div class="state-tag fms-tag">FMS</div>
+        <canvas id="mf-1" class="mini-canvas" width="115" height="120"></canvas>
+        <div class="mini-meter-row">
+          <div class="mini-track"><div class="mini-fill" id="mff-1"></div></div>
+          <span class="mini-hz" id="mhz-f1">0 Hz</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end showcase-grid -->
+
+<div class="legend-row">
+  <div class="legend-item"><div class="legend-dot" style="background:#E91E63"></div> C-fibre (pain)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div> A&#946;-fibre (touch)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div> GABA (gate)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9B59B6"></div> WDR &ndash; Healthy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#E91E63"></div> WDR &ndash; FMS</div>
+</div>
+
+<div class="explanation" id="explanation">
+  <h4>Press a sensor on the model to begin</h4>
+  <p>Each panel shows how the dorsal horn neurons respond to that stimulus in a healthy vs fibromyalgia state. The FMS state has 3&times; NMDA receptor expression and 60% reduced GABA inhibition, causing the pain gate to fail and WDR output to amplify dramatically.</p>
+</div>
+
+<script src="web_data.js"></script>
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const N_WDR = 50, N_GABA = 30;
+const STEP_MS = 20, GLOW_MS = 80, RATE_WIN = 300, MAX_HZ = 130;
+const TARGET_FPS = 25, MS_PER_FRAME = 1000 / TARGET_FPS;
+
+// Horn geometry (must match Python)
+const Y_BASE = 0.12, Y_TIP = 0.95, W_BASE = 0.75;
+const Y_NORM_MIN = Y_BASE - 0.02;
+const Y_NORM_RANGE = (Y_TIP + 0.08) - (Y_BASE - 0.02);
+const X_NORM_MIN = -W_BASE, X_NORM_RANGE = 2 * W_BASE;
+
+// Mini canvas geometry (115 × 120)
+const MW = 115, MH = 120;
+const MH_LEFT = 6, MH_RIGHT = 109, MH_MID = 57, MH_HALF = 51;
+const MH_TOP = 6, MH_BOT = 114;
+
+function miniMapX(dx) { return MH_MID + (dx / W_BASE) * MH_HALF; }
+function miniMapY(yd) { return MH_BOT - ((yd - Y_NORM_MIN) / Y_NORM_RANGE) * (MH_BOT - MH_TOP); }
+function miniNeuronPx(nx, ny) {
+  const dx = nx * X_NORM_RANGE + X_NORM_MIN;
+  const yd = ny * Y_NORM_RANGE + Y_NORM_MIN;
+  return [miniMapX(dx), miniMapY(yd)];
+}
+
+// ── Spike index helpers ───────────────────────────────────────────────────────
+function buildIndex(spk_t, duration_ms) {
+  const buckets = new Array(Math.ceil(duration_ms / 10) + 2).fill(null).map(() => []);
+  spk_t.forEach((t, idx) => { const b = Math.floor(t/10); if (b < buckets.length) buckets[b].push(idx); });
+  return buckets;
+}
+function firedSet(spk_t, spk_i, buckets, t_current) {
+  const t0 = Math.max(0, t_current - GLOW_MS);
+  const b0 = Math.floor(t0/10), b1 = Math.floor(t_current/10);
+  const fired = new Set();
+  for (let b = b0; b <= Math.min(b1, buckets.length-1); b++)
+    for (const idx of buckets[b]) { const t = spk_t[idx]; if (t >= t0 && t < t_current) fired.add(spk_i[idx]); }
+  return fired;
+}
+function rollingHz(spk_t, buckets, t_end, n) {
+  const t0 = Math.max(0, t_end - RATE_WIN);
+  const b0 = Math.floor(t0/10), b1 = Math.floor(t_end/10);
+  let count = 0;
+  for (let b = b0; b <= Math.min(b1, buckets.length-1); b++)
+    for (const idx of buckets[b]) { const t = spk_t[idx]; if (t >= t0 && t < t_end) count++; }
+  return count / (n * RATE_WIN / 1000);
+}
+function meterColor(frac) {
+  if (frac < 0.5) {
+    const r=Math.round(68+(243-68)*frac*2), g=Math.round(114+(156-114)*frac*2), b=Math.round(196+(18-196)*frac*2);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    const f=(frac-0.5)*2;
+    const r=Math.round(243+(233-243)*f), g=Math.round(156+(30-156)*f), b=Math.round(18+(99-18)*f);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+// ── Mini drawing ─────────────────────────────────────────────────────────────
+function drawMiniBg(ctx, isHealthy) {
+  ctx.fillStyle = isHealthy ? '#EEF4FF' : '#FFF0F4';
+  ctx.fillRect(0, 0, MW, MH);
+
+  // GABA band — bright green in healthy (gate working), faded pink in FMS (gate failing)
+  const gabaTop = miniMapY(0.83), gabaBot = miniMapY(0.65);
+  const gabaH = Math.abs(gabaBot - gabaTop);
+  ctx.globalAlpha = isHealthy ? 0.35 : 0.12;
+  ctx.fillStyle = isHealthy ? '#27ae60' : '#E91E63';
+  ctx.fillRect(MH_LEFT, gabaTop, MH_RIGHT - MH_LEFT, gabaH);
+  ctx.globalAlpha = 1.0;
+
+  // WDR band — subtle blue tint
+  const wdrTop = miniMapY(0.33), wdrBot = miniMapY(0.12);
+  ctx.globalAlpha = 0.10;
+  ctx.fillStyle = isHealthy ? '#4472C4' : '#E91E63';
+  ctx.fillRect(MH_LEFT, wdrTop, MH_RIGHT - MH_LEFT, Math.abs(wdrBot - wdrTop));
+  ctx.globalAlpha = 1.0;
+
+  // State label (top left)
+  ctx.fillStyle = isHealthy ? '#2255A0' : '#A0004A';
+  ctx.font = 'bold 8px Segoe UI, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(isHealthy ? 'HEALTHY' : 'FMS', 4, 10);
+
+  // Gate status indicator (top right) — key for mixed/allodynia panels
+  ctx.font = 'bold 7.5px Segoe UI, Arial';
+  ctx.textAlign = 'right';
+  if (isHealthy) {
+    ctx.fillStyle = '#27ae60';
+    ctx.fillText('✓ Gate active', MW - 3, 10);
+  } else {
+    ctx.fillStyle = '#E91E63';
+    ctx.fillText('✗ Gate failed', MW - 3, 10);
+  }
+
+  // Dividing line between GABA and WDR zones
+  ctx.strokeStyle = isHealthy ? '#27ae6044' : '#E91E6344';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([3, 3]);
+  const midY = miniMapY(0.49);
+  ctx.beginPath(); ctx.moveTo(MH_LEFT, midY); ctx.lineTo(MH_RIGHT, midY); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawMiniNeurons(ctx, firedWDR, firedGABA, isHealthy) {
+  const neu = SIM_DATA.neurons;
+  const wdrBright = isHealthy ? '#9B59B6' : '#E91E63';
+  const wdrDim    = isHealthy ? '#C8A0D8' : '#F0A0C8';
+  const gabaBright = '#27ae60', gabaDim = '#A8D8B0';
+
+  for (let i = 0; i < N_GABA; i++)
+    if (!firedGABA.has(i)) drawMiniDot(ctx, neu.gaba.x[i], neu.gaba.y[i], 3.0, gabaDim, 0.45);
+  for (let i = 0; i < N_WDR; i++)
+    if (!firedWDR.has(i))  drawMiniDot(ctx, neu.wdr.x[i],  neu.wdr.y[i],  2.5, wdrDim,  0.4);
+  for (let i = 0; i < N_GABA; i++)
+    if (firedGABA.has(i))  drawMiniGlow(ctx, neu.gaba.x[i], neu.gaba.y[i], gabaBright, 4, 8);
+  for (let i = 0; i < N_WDR; i++)
+    if (firedWDR.has(i))   drawMiniGlow(ctx, neu.wdr.x[i],  neu.wdr.y[i],  wdrBright,  3, 7);
+}
+
+function drawMiniDot(ctx, nx, ny, r, color, alpha) {
+  const [cx, cy] = miniNeuronPx(nx, ny);
+  ctx.globalAlpha = alpha; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1.0;
+}
+function drawMiniGlow(ctx, nx, ny, color, coreR=4, glowR=9) {
+  const [cx, cy] = miniNeuronPx(nx, ny);
+  const grad = ctx.createRadialGradient(cx, cy, coreR*0.5, cx, cy, glowR);
+  grad.addColorStop(0, color+'AA'); grad.addColorStop(1, color+'00');
+  ctx.globalAlpha = 0.5; ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 0.9; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1.0;
+}
+
+function updateMiniMeter(pid, isHealthy, hz) {
+  const frac = Math.min(1, hz / MAX_HZ);
+  const col   = meterColor(frac);
+  const fillEl = document.getElementById(isHealthy ? `mfh-${pid}` : `mff-${pid}`);
+  const hzEl   = document.getElementById(isHealthy ? `mhz-h${pid}` : `mhz-f${pid}`);
+  if (fillEl) { fillEl.style.width = (frac*100).toFixed(1)+'%'; fillEl.style.background = col; }
+  if (hzEl) {
+    // If healthy shows near-zero Hz, explain the gate is suppressing pain
+    if (isHealthy && hz < 2.0) {
+      hzEl.textContent = '✓ Pain suppressed';
+      hzEl.style.color = '#27ae60';
+      hzEl.style.minWidth = '90px';
+    } else {
+      hzEl.textContent = hz.toFixed(1)+' Hz';
+      hzEl.style.color = '#8B1A4A';
+      hzEl.style.minWidth = '';
+    }
+  }
+}
+
+// ── Panel state ───────────────────────────────────────────────────────────────
+// sensor_id 0=Head,1=Torso,2=RightArm,3=LeftArm,4=RightLeg,5=LeftLeg
+const PANELS = [
+  { id:0, defaultSc:'head_light',  currentSc:'head_light'  },
+  { id:1, defaultSc:'torso_light', currentSc:'torso_light' },
+  { id:2, defaultSc:'arm_light',   currentSc:'arm_light'   },
+  { id:3, defaultSc:'arm_light',   currentSc:'arm_light'   },
+  { id:4, defaultSc:'leg_light',   currentSc:'leg_light'   },
+  { id:5, defaultSc:'leg_light',   currentSc:'leg_light'   },
+];
+
+function buildPanelIndices(p) {
+  const sc = SIM_DATA.scenarios[p.currentSc];
+  p.idxWDR_H  = buildIndex(sc.healthy.wdr_t,  sc.duration_ms);
+  p.idxGABA_H = buildIndex(sc.healthy.gaba_t, sc.duration_ms);
+  p.idxWDR_F  = buildIndex(sc.fms.wdr_t,      sc.duration_ms);
+  p.idxGABA_F = buildIndex(sc.fms.gaba_t,     sc.duration_ms);
+}
+
+// Per-sensor noise floors (must match bridge SENSOR_THRESHOLDS)
+const SENSOR_NOISE_FLOORS = [60, 60, 390, 80, 70, 60];
+const SENSOR_MAX_VAL      = 1000;
+
+function pressureToSpeed(rawAdc, sensorId) {
+  const floor = SENSOR_NOISE_FLOORS[sensorId] || 60;
+  const norm  = Math.min(1, Math.max(0, (rawAdc - floor) / (SENSOR_MAX_VAL - floor)));
+  // 0.08 (near-still at rest) → 3.5 (fast at hard press)
+  return 0.08 + norm * 3.42;
+}
+
+function initPanels() {
+  PANELS.forEach(p => {
+    p.time            = Math.random() * 500;  // stagger so panels don't all flash together
+    p.speedMultiplier = 0.08;                 // start near-still
+    p.ctxH = document.getElementById(`mh-${p.id}`).getContext('2d');
+    p.ctxF = document.getElementById(`mf-${p.id}`).getContext('2d');
+    buildPanelIndices(p);
+  });
+}
+
+function setSensorScenario(sensorId, scenario) {
+  const p = PANELS.find(q => q.id === sensorId);
+  if (!p || !SIM_DATA.scenarios[scenario]) return;
+  p.currentSc = scenario;
+  p.time = 0;
+  buildPanelIndices(p);
+
+  // Brighten the active panel
+  const block = document.getElementById(`sb-${sensorId}`);
+  if (block) block.classList.add('active-panel');
+
+  // Re-dim 3 seconds after last activation
+  if (p._dimTimer) clearTimeout(p._dimTimer);
+  p._dimTimer = setTimeout(() => {
+    if (block) block.classList.remove('active-panel');
+  }, 3000);
+}
+
+// ── Animation loop ────────────────────────────────────────────────────────────
+let lastFrameTs = 0;
+function drawPanelFrame(p) {
+  const sc = SIM_DATA.scenarios[p.currentSc];
+  const t  = p.time;
+
+  p.ctxH.clearRect(0, 0, MW, MH);
+  drawMiniBg(p.ctxH, true);
+  const wdrH = firedSet(sc.healthy.wdr_t, sc.healthy.wdr_i, p.idxWDR_H, t);
+  const gabH = firedSet(sc.healthy.gaba_t, sc.healthy.gaba_i, p.idxGABA_H, t);
+  drawMiniNeurons(p.ctxH, wdrH, gabH, true);
+  updateMiniMeter(p.id, true,  rollingHz(sc.healthy.wdr_t, p.idxWDR_H, t, N_WDR));
+
+  p.ctxF.clearRect(0, 0, MW, MH);
+  drawMiniBg(p.ctxF, false);
+  const wdrF = firedSet(sc.fms.wdr_t, sc.fms.wdr_i, p.idxWDR_F, t);
+  const gabF = firedSet(sc.fms.gaba_t, sc.fms.gaba_i, p.idxGABA_F, t);
+  drawMiniNeurons(p.ctxF, wdrF, gabF, false);
+  updateMiniMeter(p.id, false, rollingHz(sc.fms.wdr_t, p.idxWDR_F, t, N_WDR));
+
+  p.time += STEP_MS * (p.speedMultiplier || 0.08);
+  if (p.time >= sc.duration_ms) p.time = 0;
+}
+
+function animate(ts) {
+  if (ts - lastFrameTs >= MS_PER_FRAME) {
+    lastFrameTs = ts;
+    PANELS.forEach(drawPanelFrame);
+  }
+  requestAnimationFrame(animate);
+}
+
+// ── Body overlay ─────────────────────────────────────────────────────────────
+function updateBodyOverlay(sensorId, intensity) {
+  for (let id = 0; id < 6; id++) {
+    const dot   = document.getElementById(`sdot-${id}`);
+    const pulse = document.getElementById(`spulse-${id}`);
+    if (dot)   dot.className.baseVal   = 'sensor-dot';
+    if (pulse) pulse.className.baseVal = 'sensor-pulse-ring';
+  }
+  const dot   = document.getElementById(`sdot-${sensorId}`);
+  const pulse = document.getElementById(`spulse-${sensorId}`);
+  if (dot)   dot.className.baseVal   = 'sensor-dot active';
+  if (pulse) pulse.className.baseVal = 'sensor-pulse-ring pulsing';
+}
+
+// ── Pressure indicator ────────────────────────────────────────────────────────
+function updatePressureIndicator(rawAdc, intensity) {
+  const fill = document.getElementById('pressure-fill');
+  const tag  = document.getElementById('pressure-tag');
+  if (!fill || !tag) return;
+  if (!intensity) {
+    fill.style.width = '0%';
+    tag.textContent = '—';
+    tag.style.background = '#F0D0DA';
+    tag.style.color = '#8B1A4A';
+    return;
+  }
+  const pct    = Math.min(100, Math.round((rawAdc / 1023) * 100));
+  const colors = { light:'#4472C4', medium:'#FF8C00', hard:'#E91E63' };
+  const labels = { light:'Light',   medium:'Medium',  hard:'Hard'    };
+  const col    = colors[intensity] || '#4472C4';
+  fill.style.width = pct+'%'; fill.style.background = col;
+  tag.textContent  = labels[intensity] || '—';
+  tag.style.background = col+'28'; tag.style.color = col;
+}
+
+// ── Explanation cards ─────────────────────────────────────────────────────────
+const EXPLANATIONS = {
+  light_touch:   { title:'&#128396; Light Touch', text:`A gentle brush activates A&#946;-fibres. In a <span class="gate-ok">healthy</span> dorsal horn, GABA interneurons suppress WDR output &mdash; the gate control mechanism. In <span class="gate-fail">fibromyalgia</span>, GABA is reduced to ~40% of normal so even light touch generates pain (<em>allodynia</em>).` },
+  moderate_pain: { title:'&#128293; Moderate Pain', text:`Sustained 20 Hz C-fibre input. <span class="gate-ok">Healthy</span> WDR neurons fire at a controlled rate. In <span class="gate-fail">FMS</span>, <span class="nmda">NMDA 3&times; normal</span> amplifies every input &mdash; central sensitisation.` },
+  repeated:      { title:'&#128257; Repeated Stimulation', text:`1 Hz bursts. NMDA receptors (&#964;=170 ms) don&apos;t fully close between stimuli. In <span class="gate-fail">FMS</span>, enhanced NMDA + weakened gate causes WDR firing to <strong>escalate</strong> &mdash; <em>wind-up</em>.` },
+  noxious:       { title:'&#9889; Noxious Stimulus', text:`C-fibre ramp 5&rarr;40 Hz. <span class="gate-ok">Healthy</span>: proportional response. <span class="gate-fail">FMS</span>: reduced inhibition turns the dorsal horn into a <strong>pain amplifier</strong> &mdash; allodynia &amp; hyperalgesia.` },
+  arm_light:     { title:'&#128396; Arm &mdash; Light Touch', text:`Gentle arm touch activates A&#946;-fibres alongside weak C-fibre input. <span class="gate-ok">Healthy</span> gate suppresses WDR output. In <span class="gate-fail">FMS</span>, GABA reduced to 40% so even a light brush generates pain &mdash; <em>allodynia</em>.` },
+  arm_medium:    { title:'&#128393; Arm &mdash; Medium Pressure', text:`Moderate pressure engages both touch and pain fibres. <span class="gate-ok">Healthy</span> gate limits output. In <span class="gate-fail">FMS</span>, <span class="nmda">NMDA 3&times;</span> amplifies every C-fibre input.` },
+  arm_hard:      { title:'&#128308; Arm &mdash; Hard Pressure', text:`Strong pressure drives heavy simultaneous activation. In <span class="gate-fail">FMS</span>, <span class="nmda">enhanced NMDA</span> + failed gate drives WDR firing dramatically higher.` },
+  leg_light:     { title:'&#128396; Leg &mdash; Light Pressure', text:`Low sustained C-fibre input. <span class="gate-ok">Healthy</span>: minimal WDR output. In <span class="gate-fail">FMS</span>: persistent aching even from gentle pressure &mdash; consistent with fibromyalgia leg pain.` },
+  leg_medium:    { title:'&#128293; Leg &mdash; Medium Pressure', text:`Sustained 20 Hz C-fibre input. <span class="gate-ok">Healthy</span>: controlled firing. In <span class="gate-fail">FMS</span>, <span class="nmda">NMDA 3&times;</span> makes each input far more potent &mdash; <em>central sensitisation</em>.` },
+  leg_hard:      { title:'&#128308; Leg &mdash; Hard Pressure', text:`Intense sustained input. In <span class="gate-fail">FMS</span>, near-complete loss of inhibitory control turns every C-fibre spike into a much stronger pain signal.` },
+  torso_light:   { title:'&#128396; Torso &mdash; Light Pressure', text:`C-fibres ramp gently from 3&rarr;15 Hz. <span class="gate-ok">Healthy</span>: proportional low response. In <span class="gate-fail">FMS</span>, even a gentle escalation triggers a disproportionate WDR response &mdash; <em>hyperalgesia</em>.` },
+  torso_medium:  { title:'&#128293; Torso &mdash; Medium Pressure', text:`Medium ramp 5&rarr;28 Hz mimics chest tightness. <span class="gate-ok">Healthy</span>: controlled growth. In <span class="gate-fail">FMS</span>, <span class="nmda">elevated NMDA</span> amplifies every step increase.` },
+  torso_hard:    { title:'&#128308; Torso &mdash; Hard Pressure', text:`Strong ramp to 40 Hz. <span class="gate-ok">Healthy</span>: vigorous but controlled response. In <span class="gate-fail">FMS</span>, failed gate + over-sensitised <span class="nmda">NMDA</span> drives WDR far beyond what the input alone would predict.` },
+  head_light:    { title:'&#128396; Head/Neck &mdash; Light Pressure', text:`Low-intensity 1 Hz bursts. <span class="nmda">NMDA (&#964;=170 ms)</span> builds between stimuli. In <span class="gate-fail">FMS</span>, even weak bursts accumulate into sustained elevated pain &mdash; constant background head pain.` },
+  head_medium:   { title:'&#128257; Head/Neck &mdash; Medium Pressure', text:`Medium 1 Hz bursts mimic tension headache. Wind-up visible in both states but dramatically amplified in <span class="gate-fail">FMS</span> &mdash; <span class="nmda">3&times; NMDA</span> means residual conductance builds much faster.` },
+  head_hard:     { title:'&#128308; Head/Neck &mdash; Hard Pressure', text:`High-intensity bursts. In <span class="gate-fail">FMS</span>, NMDA channels don&apos;t fully close between stimuli (ISI=150 ms retains 41% conductance) &mdash; escalating wind-up with each burst.` },
+};
+
+function showExplanation(scenarioId) {
+  const ex = EXPLANATIONS[scenarioId];
+  if (!ex) return;
+  document.getElementById('explanation').innerHTML = `<h4>${ex.title}</h4><p>${ex.text}</p>`;
+}
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+let manualMode = false;
+function toggleMode() {
+  manualMode = !manualMode;
+  document.getElementById('manual-controls').style.display = manualMode ? 'flex' : 'none';
+  document.getElementById('mode-toggle').textContent = manualMode ? '&#128200; Live mode' : '&#128100; Manual mode';
+}
+
+function manualSet(scenarioId) {
+  // Apply the selected scenario to all panels that match its location prefix
+  const prefix = scenarioId.split('_')[0]; // 'arm', 'leg', 'torso', 'head', 'light', etc.
+  PANELS.forEach(p => {
+    if (SIM_DATA.scenarios[scenarioId]) {
+      // Apply to all panels for simplicity in manual mode
+      setSensorScenario(p.id, scenarioId);
+    }
+  });
+  showExplanation(scenarioId);
+  document.querySelectorAll('.btn-stim').forEach(b => b.classList.toggle('active', b.dataset.id === scenarioId));
+}
+
+// ── Connection status ─────────────────────────────────────────────────────────
+function setConnectionStatus(connected) {
+  const badge = document.getElementById('status-badge');
+  const text  = document.getElementById('status-text');
+  if (!badge || !text) return;
+  badge.className = 'status-badge ' + (connected ? 'connected' : 'disconnected');
+  text.textContent = connected ? 'Arduino connected' : 'Arduino offline';
+}
+
+// ── WebSocket bridge ──────────────────────────────────────────────────────────
+function connectWebSocket() {
+  const ws = new WebSocket('ws://localhost:8765');
+  ws.onopen  = () => setConnectionStatus(true);
+  ws.onclose = () => { setConnectionStatus(false); setTimeout(connectWebSocket, 2000); };
+  ws.onerror = () => {};
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.released) {
+        // Reset all panels to near-still
+        PANELS.forEach(p => { p.speedMultiplier = 0.08; });
+        updatePressureIndicator(0, null);
+        return;
+      }
+      if (msg.pressure_update) {
+        // Continuous pressure → live animation speed for this sensor's panel
+        const p = PANELS.find(q => q.id === msg.sensor);
+        if (p) p.speedMultiplier = pressureToSpeed(msg.pressure_raw, msg.sensor);
+        updatePressureIndicator(msg.pressure_raw, msg.intensity);
+        return;
+      }
+      if (msg.scenario && SIM_DATA.scenarios[msg.scenario]) {
+        setSensorScenario(msg.sensor, msg.scenario);
+        showExplanation(msg.scenario);
+        if (typeof msg.sensor       !== 'undefined') updateBodyOverlay(msg.sensor, msg.intensity);
+        if (typeof msg.pressure_raw !== 'undefined') updatePressureIndicator(msg.pressure_raw, msg.intensity);
+      }
+    } catch(e) {}
+  };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  initPanels();
+  requestAnimationFrame(animate);
+  connectWebSocket();
+});
+</script>
+</body>
+</html>

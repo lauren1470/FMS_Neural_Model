@@ -49,6 +49,16 @@ FMS_Neural_Model/
 |   |-- initial/            # Confusion matrices and feature importance (initial)
 |   |-- tuned/              # Confusion matrices and feature importance (tuned)
 |
+|-- Demos/
+|   |-- interactive_web_demo/
+|       |-- generate_web_data.py   # Runs 32 Brian2 simulations → exports web_data.js
+|       |-- web_data.js            # Pre-computed spike data (auto-generated, ~3 MB)
+|       |-- pain_simulator.html    # Interactive web demo (open in browser)
+|       |-- showcase_bridge.py     # Arduino → WebSocket bridge for physical showcase
+|
+|-- showcase_arduino/
+|   |-- showcase_arduino.ino       # Arduino sketch for 6 FSR pressure sensors (A0–A5)
+|
 |-- make_tables.py          # Report table figure generation
 |-- requirements.txt
 |-- README.md
@@ -162,9 +172,82 @@ Sweeps NMDA (1.0×–4.0×) and GABA (0.2×–1.0×) across a 7 × 5 grid, runni
 python src/generate_sensitivity_analysis.py
 ```
 
-### 5. Generate report tables
+### 5. Run the interactive web demo
+
+Generates spike data for the web visualisation and opens the demo in a browser.
+
+**Step 1 — Generate data** (run once; takes ~20 min):
+```
+python Demos/interactive_web_demo/generate_web_data.py
+```
+This runs 32 Brian2 simulations (16 scenarios × 2 states: healthy + FMS) and writes `web_data.js`.
+
+**Step 2 — Open the demo:**
+```
+Demos/interactive_web_demo/pain_simulator.html
+```
+Open this file directly in Chrome or Edge. No server needed. The page shows six dorsal horn panels (head/neck, torso, left arm, right arm, left leg, right leg) with healthy vs FMS neural activity side by side. Use the **Manual mode** button in the header to select scenarios manually.
+
+**Scenarios included:**
+
+| Location | Protocol | Demonstrates |
+|---|---|---|
+| Head/Neck | Burst | Wind-up (cumulative NMDA activation) |
+| Torso | Ramp | Hyperalgesia (escalating noxious input) |
+| Arms | Mixed (C + Aβ) | Allodynia (gate control failure) |
+| Legs | Constant | Sustained central sensitisation |
+
+Each location has three intensities (light / medium / hard), for 16 scenarios total.
+
+---
+
+### 6. Run the physical showcase (Arduino + FSR sensors)
+
+The showcase connects 6 Force Sensitive Resistors (FSRs) wired to an Arduino Uno R4. Visitors press on a 3D-printed body model; the corresponding dorsal horn simulation updates in real time.
+
+**Hardware required:**
+- Arduino Uno R4 (Minima or WiFi)
+- 6× FSR 400/402 pressure sensors (A0=Head, A1=Torso, A2=Right Arm, A3=Left Arm, A4=Right Leg, A5=Left Leg)
+- 6× 10 kΩ pull-down resistors (voltage divider per sensor)
+- Breadboard + jumper wires
+
+**Wiring (per sensor):**
+```
+5V ──── FSR ──── Analog pin (A0–A5)
+                      │
+                    10 kΩ
+                      │
+                     GND
+```
+
+**Step 1 — Upload Arduino sketch:**
+Open `showcase_arduino/showcase_arduino.ino` in Arduino IDE 2. Select board: Arduino Uno R4 Minima. Upload. The sketch emits `{"sensor":N,"pressure":V}` JSON at 115200 baud when a sensor is pressed.
+
+**Step 2 — Install bridge dependencies:**
+```
+pip install pyserial websockets
+```
+
+**Step 3 — Run the bridge:**
+```
+python Demos/interactive_web_demo/showcase_bridge.py
+```
+The bridge auto-detects the Arduino COM port and starts a WebSocket server on `ws://localhost:8765`. Pass `--port COM3` to specify the port manually.
+
+**Step 4 — Open the demo:**
+```
+Demos/interactive_web_demo/pain_simulator.html
+```
+The **Arduino connected** badge in the header turns green when the bridge is running. Press a sensor — the corresponding panel brightens, the body model highlights the location, and the pressure bar shows intensity. Releasing the sensor resets the display within 500 ms.
+
+> **Note:** `web_data.js` must be generated (step 5) before the showcase will work.
+
+---
+
+### 7. Generate report tables
 
 Produces styled PNG tables for the written report using data from `data/dataset.csv` and `results/tuned/classification_results.json`. Steps 2 and 3 must be completed first.
+
 
 ```
 python make_tables.py
@@ -278,6 +361,8 @@ Four protocols are used during dataset generation, each with randomised paramete
 | scipy | 1.11.4 |
 | joblib | 1.5.3 |
 | Cython | 3.2.4 |
+| pyserial | 3.5+ | Physical showcase bridge (Arduino serial) |
+| websockets | 12.0+ | Physical showcase bridge (WebSocket server) |
 
 ---
 
